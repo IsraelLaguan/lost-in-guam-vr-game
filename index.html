@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Lost In Guam's Woods</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/0.5.0/aframe.min.js"></script>
+</head>
+<body>
+   <a-scene>
+       <a-sky color="#000000"></a-sky>       
+       <a-entity id="camera">
+           <a-camera position="0 1.6 30" wasd-controls-enabled="false" look-controls>
+               <a-entity id="textBox" text="value:You Are Lost In Guam's Woods\n Avoid the trees and get to the exit\nCollect 5 Power Coins To Powerup The Portal\nLook Left To Go Left\nLook Right To Go Right; width:6; align:center" position="0 1.5 -3"></a-entity>
+               <a-entity id="coinTextBox" text="value:Coins: 0; width:6; align:center" position="0 0.5 -3"></a-entity>
+               <a-entity id="timerTextBox" text="value:Seconds Left: 10; width:6; align:center" position="0 0.2 -3"></a-entity>
+           </a-camera>      
+       </a-entity>
+        <!-- Border -->
+       <a-plane color="red" width="1600" position="-70 0 0" height="20" rotation="0 -90 0" side="double" opacity = "0.5"></a-plane>
+       <a-plane color="red" width="1600" position="70 0 0" height="20" rotation="0 -90 0" side="double" opacity = "0.5"></a-plane>
+       
+        <!-- Goal   -->
+       <a-plane id="goal" color="#00b8cc" visible = "false" rotation="0 0 -90" width="500" height="5" position="0 0 -730" opacity="0.5"></a-plane>
+        
+      <a-light id="ambientLight" type="ambient" color="#000000"></a-light>
+      <a-light  type="point" intensity="0.5" position="10 100 -100"></a-light> 
+   </a-scene> 
+   <script>
+    var obstacles = [];
+    var collisionOffset = 1;
+    var moveLeft = false;
+    var moveRight = false;
+    var moveUp = false;
+    var rotationOffset = 70;
+    var canMove = false;
+    var coins = [];
+    var waitingTime = 15;
+    var escaped = false;
+    var numCoins = 0;
+    var clouds = [];
+    
+    window.onload = function(){
+        var scene = document.querySelector("a-scene");
+        var camera = document.querySelector("a-camera");
+        var textBox = document.querySelector("#textBox");
+        var goal = document.querySelector("#goal");
+        var coinTextBox = document.querySelector("#coinTextBox");
+        var timerTextBox = document.querySelector("#timerTextBox");
+        var skyBox = document.querySelector("a-sky");
+        var ambientLight = document.querySelector("#ambientLight")
+        
+        //add ground
+        var floorEntity = document.querySelector("#floor");
+        var groundColors = ["#5a8213","#6e9a32","#6d4630","#d3ecaa","#516935","#382819","#467653"];
+        var groundSize = 20
+        var groundSpacing = 0
+        for(var i = -10; i < 10; i++ ){
+            for(var j = 0; j < 40; j++){
+                var ground = document.createElement("a-plane");
+                ground.setAttribute('geometry', {
+                  height: groundSize,
+                  width: groundSize
+                });
+                ground.setAttribute("color",groundColors[Math.floor(Math.random()*groundColors.length)]);
+                ground.setAttribute("position","" + i * groundSize + " 0 " + (-1  * ( j *groundSize) + groundSpacing))
+                ground.setAttribute("rotation","-90 0 0")
+                scene.appendChild(ground)
+            }
+            
+        }
+           
+        //add obstacles
+        var coneHeight = 2;
+        var coneRadiusBottom = 1;
+        var coneRadiusTop = 0;
+        var coneColor="lime";
+        
+        var cylinderColor="crimson";
+        var cylinderHeight = 1;
+        var cylinderRadius = 0.1;
+        var treeSpacing = 10;
+        var treeXDistance = 72;
+        var cameraSpeed = 1.5;
+        var cameraTurnSpeed = 0.6;
+        
+        for(var i = 0; i < 70; i++){
+            var tree = document.createElement("a-entity")
+            var cone = document.createElement("a-cone");
+            var cylinder = document.createElement("a-cylinder");
+            
+            cone.setAttribute("height",coneHeight);
+            cone.setAttribute("radius-bottom",coneRadiusBottom);
+            cone.setAttribute("radius-top",coneRadiusTop);
+            cone.setAttribute("color",coneColor);
+            cone.setAttribute("position","0 1 0");
+            
+            cylinder.setAttribute("color",cylinderColor)
+            cylinder.setAttribute("height",cylinderHeight)
+            cylinder.setAttribute("radius",cylinderRadius)
+            cylinder.setAttribute("position","0 -0.5 0")
+            
+            tree.appendChild(cone)
+            tree.appendChild(cylinder)
+            tree.setAttribute("position","" + (Math.random() <= 0.5 ? -1 : 1) * Math.floor(Math.random() * treeXDistance)  + " 1 " + (i * -treeSpacing))
+            obstacles.push(tree)
+            scene.appendChild(tree)
+        }
+        
+        //Add coins
+        for(var i = 0; i < 70; i++){
+            var coin = document.createElement("a-ring");
+            coin.setAttribute("radius-inner","0.5");
+            coin.setAttribute("radius-outer","0.8");
+            coin.setAttribute("position",{x:(Math.random() <= 0.5 ? -1 : 1) * Math.floor(Math.random() * treeXDistance),y:1,z:i * -treeSpacing})
+            coin.setAttribute("color","yellow");
+            coin.setAttribute("opacity",0.5);
+            coins.push(coin)
+            scene.appendChild(coin)
+        }
+        
+        //Add clouds
+        cloudColors = ["#748b90","#a29cb3","#00b8cc","#b8e2ee","#506d6f"]
+        for(var i = 0; i < 70; i++){
+            var cloud = document.createElement("a-box")
+            cloud.setAttribute("width",Math.floor(Math.random() * 6) + 2)
+            cloud.setAttribute("height",Math.floor(Math.random() * 8) + 6)
+            cloud.setAttribute("rotation","-90 0 -90")
+            cloud.setAttribute("depth",Math.floor(Math.random() * 4) + 2)
+            cloud.setAttribute("color",cloudColors[Math.floor(Math.random() * cloudColors.length)])
+            cloud.setAttribute("position",{x:(Math.random() <= 0.5 ? -1 : 1) * Math.floor(Math.random() * treeXDistance),y:Math.floor(Math.random() * 70) + 50,z:i * -treeSpacing});
+            clouds.push(cloud)
+            scene.appendChild(cloud)
+        }
+        
+      //update
+        var update = setInterval(function(){
+            //check camera rotation
+            checkCameraRotation(camera);
+            
+            //move camera
+            if(canMove){
+                moveCamera();
+            }
+            
+            //move camera back to center
+            if(getCameraPosition().x <= -70 || getCameraPosition().x >= 70){
+                setCameraPosition({x:0,y:getCameraPosition().y,z:getCameraPosition().z})
+            }
+            
+            //if the player missed the goal
+            if(getCameraPosition().z <= -753.531339461689){
+                canMove = false;
+                textBox.setAttribute("text",{value:"You Missed The Portal\nYou Are Lost Forever :(",width:6,align:"center"})
+                setTimeout(function(){
+                    clearInterval(update)
+                    location.reload();
+                },2000)
+            }
+            
+            //collisions
+            checkTreeCollision(camera,obstacles);
+            checkGoalCollision(goal);
+            checkCoinCollision(coins);   
+            
+            //clouds
+            cloudMovement();
+        },60)
+    
+            
+        //functions
+        var getCameraPosition = function(){
+            return camera.getAttribute("position")
+        };
+        var setCameraPosition = function(pos){
+            camera.setAttribute("position",{x:pos.x,y:pos.y,z:pos.z})
+        };
+        
+        var getObjProperty = function(obj,property){
+            return obj.getAttribute(property)
+        };
+        
+        var checkTreeCollision = function(camera,obstacles){
+            obstacles.forEach(function(tree){
+                var diffX = Math.abs(getObjProperty(tree,"position").x - getCameraPosition().x);
+                var diffZ = Math.abs(getObjProperty(tree,"position").z - getCameraPosition().z);
+                if(diffX <=  collisionOffset && diffZ <= collisionOffset){
+                    console.log("hit a tree");
+                    //stop movement
+                    canMove = false;
+                    //show a message
+                    textBox.setAttribute("text",{value:"Oh No! You Hit A tree\nGAME OVER",width:6,align:"center"})
+                    //restart game
+                    setTimeout(function(){
+                        clearInterval(update)
+                        location.reload();
+                    },2000)
+                }
+            });
+        };
+        
+        var checkGoalCollision = function(goal){
+            var diffX= Math.abs(getCameraPosition().x - getObjProperty(goal,"position").x);
+            var diffZ= Math.abs(getCameraPosition().z - getObjProperty(goal,"position").z);
+            if((diffX <= collisionOffset + 5 && diffZ <= collisionOffset) && goal.getAttribute("visible") == true){
+                textBox.setAttribute("text",{value:"Awesome!\n You Found Your Way Out!\nNow You Can Go Get Some Chicken Kelaguen :)",width:6,align:"center"});
+                canMove = false;
+                escaped = true;
+            }
+        };
+        
+        var checkCoinCollision = function(coins){
+            coins.forEach(function(coin){
+                var diffX= Math.abs(getCameraPosition().x - getObjProperty(coin,"position").x);
+                var diffZ= Math.abs(getCameraPosition().z - getObjProperty(coin,"position").z);
+                if(diffX <= collisionOffset + 5 && diffZ <= collisionOffset){
+                    console.log("Hit coin")
+                    if(coin.getAttribute("visible")){
+                        coin.setAttribute("visible",false)
+                        numCoins++; 
+                        
+                    }
+                    coinTextBox.setAttribute("text",{value:"Coins: " + numCoins,width:6,align:"center"})
+                    
+                    //did they collect enough
+                    if(numCoins >= 5){
+                        goal.setAttribute("visible",true)
+                    }
+                } 
+            });
+        }
+        
+        var checkCameraRotation = function(camera){
+            var rotation = camera.getAttribute("rotation");
+            var currentRotation = parseInt(rotation.y%=360);
+            
+            //keep only positive rotation
+            if(rotation.y<0){
+                rotation.y+=360
+                currentRotation = parseInt(rotation.y%=360);
+            }
+            
+            if(currentRotation >= 30 && currentRotation <= 30 + rotationOffset){
+                moveLeft = true;
+            }else{
+                moveLeft = false;
+            }
+            
+            if(currentRotation <= 340 && currentRotation >= 340 - rotationOffset){
+                moveRight = true;
+            }else{
+                moveRight = false;
+            }
+     
+        }
+        
+        var moveCamera = function(){
+            pos = getCameraPosition()
+            if(moveLeft){
+                setCameraPosition({x:pos.x-=cameraTurnSpeed,y:pos.y,z:pos.z})
+            }
+            if(moveRight){
+                setCameraPosition({x:pos.x+=cameraTurnSpeed,y:pos.y,z:pos.z}) 
+            }
+            setCameraPosition({x:pos.x,y:pos.y,z:pos.z-=cameraSpeed})    
+            
+        }
+        
+        //countdown timer
+        var timer = setInterval(function(){
+            waitingTime--;
+            timerTextBox.setAttribute("text",{value:"Go Time: " + waitingTime});
+            if(waitingTime == 0){
+                clearInterval(timer);
+                timerTextBox.setAttribute("visible",false);
+                canMove = true;
+                textBox.setAttribute("text",{value:""})
+            }
+        },1000)
+        
+        
+        var cloudMovement = function(){
+            clouds.forEach(function(cloud){
+                pos = cloud.getAttribute("position");
+                cloud.setAttribute("position",{x:pos.x+=0.3,y:pos.y,z:pos.z});
+                
+                if(pos.x>= 120){
+                    cloud.setAttribute("position",{x:-120,y:pos.y,z:pos.z})
+                }
+            })
+        }
+        
+        var lighting = setInterval(function(){
+            random = Math.random()
+            if(random <= 0.2){
+                skyBox.setAttribute("color","white")
+                ambientLight.setAttribute("color","white")
+            }
+            setTimeout(function(){
+                skyBox.setAttribute("color","#000000")
+                ambientLight.setAttribute("color","#000000")
+            },300)
+        },1000);
+        
+        lighting();         
+    }
+     
+   </script>
+</body>
+</html>
